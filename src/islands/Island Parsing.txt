@@ -1,0 +1,73 @@
+From: Patrick Viry <patrick.viry@gmail.com>
+Subject: Island Parsing
+Date: September 29, 2013 1:30:05 AM GMT+02:00
+To: Oscar Nierstrasz <oscar@iam.unibe.ch>
+Return-Path: <patrick.viry@gmail.com>
+Received: from smtp.iam.unibe.ch ([unix socket]) by balu (Cyrus v2.2.13-Debian-2.2.13-19+squeeze3) with LMTPA; Sun, 29 Sep 2013 01:30:41 +0200
+Received: from mail.iam.unibe.ch (asterix.unibe.ch [130.92.64.4]) by smtp.iam.unibe.ch (Postfix) with ESMTP id 2E166BE64CB for <oscar@balu.unibe.ch>; Sun, 29 Sep 2013 01:30:41 +0200 (CEST)
+Received: from mailhub-lb1.unibe.ch (mailhub-lb1.unibe.ch [130.92.0.82]) by mail.iam.unibe.ch (8.13.8+Sun/8.13.8) with ESMTP id r8SNUeBO025507 for <oscar@iam.unibe.ch>; Sun, 29 Sep 2013 01:30:40 +0200 (MEST)
+Received: from mail-we0-f172.google.com (mail-we0-f172.google.com [74.125.82.172]) (using TLSv1 with cipher RC4-SHA (128/128 bits)) (No client certificate requested) by mailhub-lb1.unibe.ch (Postfix) with ESMTPS id 39FDE80296 for <oscar@iam.unibe.ch>; Sun, 29 Sep 2013 01:30:35 +0200 (CEST)
+Received: by mail-we0-f172.google.com with SMTP id w61so4063321wes.17 for <oscar@iam.unibe.ch>; Sat, 28 Sep 2013 16:30:35 -0700 (PDT)
+Received: by 10.216.188.69 with HTTP; Sat, 28 Sep 2013 16:30:05 -0700 (PDT)
+X-Sieve: CMU Sieve 2.2
+X-Virus-Scanned: by University of Bern - Mailgateway
+Dkim-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=gmail.com; s=20120113; h=mime-version:from:date:message-id:subject:to:content-type; bh=rGnhLGRe/jxVjAgPHqJzmh4UhbN0JLhqAnpQJg2/7pw=; b=suwxntkAp3o+HiRSJGKsvuoZlqfIVgqI7a6gZeWTrfb9NL1kP/YiroDLP7IZZkttnm RJw7HcNAELP2L1oVf4ZMfReA6iQuUFT0j0XViiCzth6XE3r2IhZUw7CBAwOy1bH+t886 RlAr7AvibQVI8tmIET3JKNvodAYpHqlYp4Ou5sJ51YKjIU7Rf3M5giLf6LdsF4kOjExE QqfkPZaLRYqwDkL4tcRDFeNBV8cv/ENyTdnMIWYl7oEyBT0T+IVeAPba2YSe7Uht9A+K B30vniILvUeRoc6+A+qZN2rO0hmtdFt54wd3ftPRpVmJl6sA4O0VUy1wief93FVQfGqC P2mg==
+X-Received: by 10.195.13.164 with SMTP id ez4mr11501343wjd.11.1380411035614; Sat, 28 Sep 2013 16:30:35 -0700 (PDT)
+Mime-Version: 1.0
+Message-Id: <CAOdfq+mpHqbhdq_2mGbMTqON9JbYHCU=0aH7VLkzmXgcGugduw@mail.gmail.com>
+Content-Type: multipart/alternative; boundary=047d7bb04f686c04bd04e779fdca
+
+
+Hi Oscar,
+
+Following our discussion on island parsing, I ran an actual experiment using Rascal. Here is the source code:
+
+module demo::lang::IslandParsing::Syntax
+
+layout Whitespace = [\t-\n\r\ ]*; 
+    
+lexical Id  = [a-z][a-z0-9]* !>> [a-z0-9];
+lexical Natural = [0-9]+ ;
+lexical String = "\"" ![\"]*  "\"";         
+
+start syntax Island // brackets
+  = bracket "(" Term* ")"
+  | bracket "{" Term* "}"         
+  ;
+
+syntax Sea // everything else
+  = Id
+  | Natural
+  | String     
+  ;
+  
+syntax Term
+  = Sea* 
+  | Sea* Island Term*
+  ;
+
+
+The idea is that you let the parser (GLL in this case) find the matching braces, and consider everything else as sea. As a prerequisite you have to provide the boundaries of tokens, especially the handling of escape sequences in string literals. Later of course you can refine this grammar until there is no sea anymore.
+
+It works really well:
+
+rascal>parse(#Term, "123 { abc def } 456"); // matched brackets
+sort("Term"): `123 { abc def } 456`
+
+rascal>parse(#Term, "123 { abc def 456"); // missing closing bracket
+|rascal://ParseTree|(9828,833,<249,0>,<275,60>): ParseError(|file://-|(17,0,<1,17>,<1,17>))
+
+rascal>parse(#Term, "123 { abc def } 456 { () }"); // recursively matched brackets and parentheses
+sort("Term"): `123 { abc def } 456 { () }`
+
+rascal>parse(#Term, "123 { abc def } 456 { ( } )"); // mismatched brackets and parentheses
+|rascal://ParseTree|(9828,833,<249,0>,<275,60>): ParseError(|file://-|(24,1,<1,24>,<1,25>))
+
+Enjoy,
+Patrick 
+
+-- 
+Patrick Viry
+mobile: +33 6 9969 2701
+skype: patrickviry
+
