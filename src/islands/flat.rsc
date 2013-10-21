@@ -79,7 +79,7 @@ public set[loc] allFiles(loc proj) = { f | /file(loc f) := crawl(proj) };
 public set[loc] javaFiles(loc proj) =
 	{ f | f <- allFiles(proj), endsWith(f.path, ".java") };
 
-private set[loc] removeRascalParser(set[loc] files) =
+public set[loc] removeRascalParser(set[loc] files) =
 	{ f | f <- files, !endsWith(f.path, "RascalParser.java") }; // HACK -- avoid stack overflow
 
 @doc { Return true/false whether all files parse. }
@@ -129,10 +129,11 @@ test bool testChar2() = /lit("\'") := parse(#Char, "\'\"\'");
 test bool testChar3() = /lit("\'") := parse(#Char, "\'\\n\'");
 test bool testChar4() = /lit("\'") := parse(#Char, "\'\\\\\'");
 
-test bool testSnakes() = parseFiles(javaFiles(|project://p2-SnakesAndLadders|));
+private loc snakes = |project://p2-SnakesAndLadders|;
+test bool testSnakes() = parseFiles(javaFiles(snakes));
 
 // SLOW TEST
-test bool testRascalEclipse() = parseFiles(javaFiles(|project://rascal-eclipse|));
+// test bool testRascalEclipse() = parseFiles(javaFiles(|project://rascal-eclipse|));
 
 // VERY SLOW TEST
 // test bool testRascalEclipse() = parseFiles(removeRascalParser(javaFiles(|project://rascal-clone|)));
@@ -193,3 +194,20 @@ minErr(#start[Code], |project://rascal-clone/src/org/rascalmpl/library/lang/rasc
 
 
 */
+
+/*
+loc snakes = |project://p2-SnakesAndLadders|;
+for (f <- javaFiles(snakes)) {
+	pt = parse(#start[Code], f);
+	if (/amb(_) := pt) {
+		println("AMBIGUOUS: <f>");
+	}
+}
+
+import Ambiguity;
+f = |project://p2-SnakesAndLadders/src/snakes/Player.java|;
+pt = parse(#start[Code], f);
+diagnose(pt);
+
+*/
+
