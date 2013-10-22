@@ -1,5 +1,8 @@
 /*
 Here we just try to recognize Java files as flat sequences of "Stuff".
+
+TODO: Trying to implode the cod einto a list of words, but this sodes not work.
+
 */
 
 module islands::flat
@@ -40,7 +43,6 @@ lexical Comment
 	= "/*" (![*] | [*] !>> [/])* "*/" 
 	| "//" ![\n]* !>> [\ \t\r \u00A0 \u1680 \u2000-\u200A \u202F \u205F \u3000] $ // the restriction helps with parsing speed
 	;
-	
 
 lexical Word
   = [a-zA-Z_][a-zA-Z0-9_\-]* !>> [a-zA-Z0-9_\-] // greedy
@@ -69,6 +71,9 @@ syntax Stuff
 start syntax Code
   = Stuff+
   ;
+
+data Code = code(list[Word]);
+data Word = word(str);
 
 /* === TESTING === */
 
@@ -133,10 +138,10 @@ private loc snakes = |project://p2-SnakesAndLadders|;
 test bool testSnakes() = parseFiles(javaFiles(snakes));
 
 // SLOW TEST
-// test bool testRascalEclipse() = parseFiles(javaFiles(|project://rascal-eclipse|));
+test bool testRascalEclipse() = parseFiles(javaFiles(|project://rascal-eclipse|));
 
 // VERY SLOW TEST
-// test bool testRascalEclipse() = parseFiles(removeRascalParser(javaFiles(|project://rascal-clone|)));
+// test bool testRascalClone() = parseFiles(removeRascalParser(javaFiles(|project://rascal-clone|)));
 
 /* === DEBUGGING === */
 
@@ -165,6 +170,31 @@ private list[str] binSearchErrs(type[&T<:Tree] begin, list[str] input) {
 	try
 		parse(begin, intercalate("\n",high));
 	catch :
+		return binSearchErrs(begin, high);
+	return input; // failed to find a substring with the error
+}
+
+@doc { Return a minimal substring that shows ambiguity. }
+public str minAmb(type[&T<:Tree] begin, loc input) {
+	if(/amb(_) := parse(begin, input)) {
+		return intercalate("\n", binSearchAmbiguity(begin, readFileLines(input)));
+	} else {
+		println("No ambiguity in this file");
+		throw("No ambiguity in this file");
+	}
+}
+
+@doc { Perform binary search to find smallest ambiguous sublist of lines. }
+private list[str] binSearchAmbiguity(type[&T<:Tree] begin, list[str] input) {
+	int len = size(input);
+	if (len == 1) return input;
+	int mid = len/2;
+	list[str] low = slice(input,0,mid);
+	list[str] high = slice(input,mid,len-mid);
+	assert(low+high == input);
+	if(/amb(_) := parse(begin, intercalate("\n",low)))
+		return binSearchErrs(begin, low);
+	if(/amb(_) := parse(begin, intercalate("\n",high)))
 		return binSearchErrs(begin, high);
 	return input; // failed to find a substring with the error
 }
@@ -205,9 +235,16 @@ for (f <- javaFiles(snakes)) {
 }
 
 import Ambiguity;
+
 f = |project://p2-SnakesAndLadders/src/snakes/Player.java|;
 pt = parse(#start[Code], f);
+implode(#value, pt);
+implode(#Code, pt);
+
 diagnose(pt);
+
+eg = minAmb(#start[Code], f);
+
 
 */
 

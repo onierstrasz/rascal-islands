@@ -2,7 +2,7 @@
 Here we adapt the flat parser to a structured island parser.
 
 TODO:
-- parses most of the rascal files, but contains ambiguities; need to fix these first
+- parses most of the rascal files, but contains ambiguities; need to fix these first?
 - next, want to use implode() to get AST and then write a pretty printer to check results
 */
 
@@ -41,7 +41,7 @@ lexical Any
 // stolen from Rascal grammar
 lexical Comment
 	= "/*" (![*] | [*] !>> [/])* "*/" 
-	| "//" ![\n]* // !>> [\ \t\r \u00A0 \u1680 \u2000-\u200A \u202F \u205F \u3000] $ // the restriction helps with parsing speed
+	| "//" ![\n]* !>> ![\n] $
 	;
 
 lexical Word
@@ -49,12 +49,8 @@ lexical Word
   ;
 
 syntax Noise // numbers and operators
-  = NoiseChar+
-  ;
-
-lexical NoiseChar
-  = ![a-zA-Z_(){}\[\]\"\']
-  | "/" !>> [*/] // take care not to conflict with comments
+  = (![a-zA-Z_(){}\[\]\"\'/\t-\n\r\ ])+ !>> ![a-zA-Z_(){}\[\]\"\'/\t-\n\r\ ]
+  | "/" !>> [*/]
   ;
 
 lexical Paren = [ ( ) { } \[ \] ] ;
@@ -112,6 +108,19 @@ public bool parseFiles(set[loc] files, bool verbose=false) {
 	return true;
 }
 
+@doc { Report whcih files parse ambiguously }
+public void findAmbiguous(set[loc] files) {
+	try
+		for (loc f <- files) {
+			if (/amb(_) := parse(#start[Code], f))
+				println("AMBIGUOUS: <f>");
+			else
+				println("NOT AMBIGUOUS: <f>");
+		}
+	catch :
+		println("PARSE ERROR: <f>");
+}
+
 test bool testStringEmpty() = /lit("\"") := parse(#String, "\"\"");
 test bool testString1Char() = /lit("\"") := parse(#String, "\"a\"");
 test bool testStringEscape() = /lit("\"") := parse(#String, "\"\\n\"");
@@ -129,10 +138,15 @@ test bool testComment() = /lit("//") := parse(#Comment, "// ...");
 test bool testCommentQuote() = /lit("//") := parse(#Comment, "// can\'t parse?");
 test bool testCommentMultiLine() = /lit("/*") := parse(#Comment, "/* ...\n* more\n */");
 
-// parse error
-test bool testCodeWithCommentAndQuote1() = /sort("Code") := parse(#start[Code], "1 // can\'t parse");
+test bool testNoise1() = /sort("Noise") := parse(#Noise, "1");
+test bool testNoise2() = /sort("Code") := parse(#start[Code], "1%^$$*^$");
+test bool testNoise3() = /sort("Noise") := parse(#Noise, "/");
 
-// should pass
+test bool testCodeWithCommentAndQuote1() = /sort("Code") := parse(#start[Code], "1 // can\'t parse");
+test bool testWater1() = /sort("Water") := parse(#start[Code], "1");
+test bool testWater2() = /sort("Water") := parse(#start[Code], "// can\'t parse");
+
+
 test bool testCodeWithCommentAndQuote2() = /lex("Comment") := parse(#start[Code], "1 // can parse");
 
 test bool testStuff0() = /sort("Stuff") := parse(#start[Code], "1 ");
@@ -147,6 +161,7 @@ test bool testChar2() = /lit("\'") := parse(#Char, "\'\"\'");
 test bool testChar3() = /lit("\'") := parse(#Char, "\'\\n\'");
 test bool testChar4() = /lit("\'") := parse(#Char, "\'\\\\\'");
 
+// test bool testAmbWater1() = /sort("Water") := parse(#start[Code], "\>0;");
 
 test bool testPackage() = /sort("Code") := parse(#start[Code], "package snakes;");
 
@@ -156,7 +171,7 @@ test bool testSnakes() = parseFiles(javaFiles(|project://p2-SnakesAndLadders|));
 // test bool testRascalEclipse() = parseFiles(javaFiles(|project://rascal-eclipse|));
 
 // VERY SLOW TEST
-// test bool testRascalEclipse() = parseFiles(removeRascalParser(javaFiles(|project://rascal-clone|)));
+// test bool testRascalClone() = parseFiles(removeRascalParser(javaFiles(|project://rascal-clone|)));
 
 /* === DEBUGGING === */
 
@@ -212,13 +227,22 @@ This file is very slow to parse:
 */
 
 /*
+findAmbiguous(javaFiles(|project://p2-SnakesAndLadders|));
+
 import ParseTree;
-loc f = |project://p2-SnakesAndLadders/src/snakes/Player.java|;
+loc f;
+f = |project://p2-SnakesAndLadders/src/snakes/Die.java|;
 pt = parse(#start[Code], f);
 /amb(_) := pt;
+
+import Ambiguity;
 diagnose(pt);
 
 ast = implode(#value, pt);
+ast = implode(#node, pt);
 
+
+import  vis::ParseTree;
+renderParsetree(pt);
 
 */
