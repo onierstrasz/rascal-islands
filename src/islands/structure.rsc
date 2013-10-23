@@ -11,9 +11,13 @@ module islands::structure
 import IO; // println
 import String; // endsWith, intercalate
 import List; // size
+import Node; // getChildren
 import util::FileSystem; // crawl
+import  vis::ParseTree; // renderParsetree
 
 layout Whitespace = [\t-\n\r\ ]* !>> [\t-\n\r\ ] ; // greedy
+
+// LEXICAL
 
 lexical Char
   = "\'" CharCharacter "\'"
@@ -38,7 +42,6 @@ lexical Any
   |	![a-z]
   ;
 
-// stolen from Rascal grammar
 lexical Comment
 	= "/*" (![*] | [*] !>> [/])* "*/" 
 	| "//" ![\n]* !>> ![\n] $
@@ -48,12 +51,13 @@ lexical Word
   = word: [a-zA-Z_][a-zA-Z0-9_\-]* !>> [a-zA-Z0-9_\-] // greedy
   ;
 
-syntax Noise // numbers and operators
-  = (![a-zA-Z_(){}\[\]\"\'/\t-\n\r\ ])+ !>> ![a-zA-Z_(){}\[\]\"\'/\t-\n\r\ ]
+// WHOOPS! -- this must be lexical, not syntax!
+lexical Noise // numbers and operators
+  = (![a-zA-Z_(){}\[\]\"\'/])+ !>> ![a-zA-Z_(){}\[\]\"\'/]
   | "/" !>> [*/]
   ;
 
-lexical Paren = [ ( ) { } \[ \] ] ;
+// SYNTAX
 
 syntax Island
   = Word
@@ -93,32 +97,30 @@ public set[loc] allFiles(loc proj) = { f | /file(loc f) := crawl(proj) };
 public set[loc] javaFiles(loc proj) =
 	{ f | f <- allFiles(proj), endsWith(f.path, ".java") };
 
-public set[loc] removeRascalParser(set[loc] files) =
-	{ f | f <- files, !endsWith(f.path, "RascalParser.java") }; // HACK -- avoid stack overflow
+//public set[loc] removeRascalParser(set[loc] files) =
+//	{ f | f <- files, !endsWith(f.path, "RascalParser.java") }; // HACK -- avoid stack overflow
 
-@doc { Return true/false whether all files parse. }
-public bool parseFiles(set[loc] files, bool verbose=false) {
-	try
-		for (loc f <- files) {
-			if (verbose) println(f);
-			parse(#start[Code], f);
-		}
-	catch :
-		return false;
+@doc { Return true/false whether all files parse unambiguously. }
+public bool parseFiles(set[loc] files) {
+	for (loc f <- files) {
+		try {
+			if (/amb(_) := parse(#start[Code], f))
+				return false;
+		} catch :
+			return false;
+	}
 	return true;
 }
 
-@doc { Report whcih files parse ambiguously }
-public void findAmbiguous(set[loc] files) {
+public bool unambiguous(str src) = !(/amb(_) := parse(#start[Code], src));
+public bool unambiguous(loc src) = !(/amb(_) := parse(#start[Code], src));
+
+public bool parses(str src) {
 	try
-		for (loc f <- files) {
-			if (/amb(_) := parse(#start[Code], f))
-				println("AMBIGUOUS: <f>");
-			else
-				println("NOT AMBIGUOUS: <f>");
-		}
+		parse(#start[Code], src);
 	catch :
-		println("PARSE ERROR: <f>");
+		return false;
+	return true;
 }
 
 test bool testStringEmpty() = /lit("\"") := parse(#String, "\"\"");
@@ -138,9 +140,26 @@ test bool testComment() = /lit("//") := parse(#Comment, "// ...");
 test bool testCommentQuote() = /lit("//") := parse(#Comment, "// can\'t parse?");
 test bool testCommentMultiLine() = /lit("/*") := parse(#Comment, "/* ...\n* more\n */");
 
-test bool testNoise1() = /sort("Noise") := parse(#Noise, "1");
+test bool testNoise1() = /lex("Noise") := parse(#Noise, "1");
 test bool testNoise2() = /sort("Code") := parse(#start[Code], "1%^$$*^$");
-test bool testNoise3() = /sort("Noise") := parse(#Noise, "/");
+test bool testNoise3() = /lex("Noise") := parse(#Noise, "/");
+
+test bool testCode0() = unambiguous("");
+test bool testCode1() = unambiguous("int x");
+test bool testCode2() = unambiguous(";");
+test bool testCode3() = unambiguous(":=");
+test bool testCode3a() = unambiguous(":= ");
+test bool testCode3b() = parses(":= ");
+test bool testCode4() = unambiguous(": =");
+test bool testCode5() = unambiguous("int FACES = 6;"); 
+test bool testCode6() = unambiguous("1"); 
+test bool testCode6a() = unambiguous("1 "); 
+test bool testCode7() = unambiguous("1 //"); 
+test bool testCode7a() = parses("1 //"); 
+test bool testCode8() = unambiguous("//"); 
+test bool testCode9() = unambiguous("1 // comment");
+test bool testCode9a() = parses("1 // comment"); 
+
 
 test bool testCodeWithCommentAndQuote1() = /sort("Code") := parse(#start[Code], "1 // can\'t parse");
 test bool testWater1() = /sort("Water") := parse(#start[Code], "1");
@@ -204,10 +223,30 @@ private list[str] binSearchErrs(type[&T<:Tree] begin, list[str] input) {
 	return input; // failed to find a substring with the error
 }
 
-/*
+@doc { Report which files parse ambiguously }
+public void findAmbiguous(set[loc] files, bool verbose=false) {
+	for (loc f <- files) {
+		try
+			if (/amb(_) := parse(#start[Code], f))
+				println("AMBIGUOUS: <f> (<sloc(f)>)");
+			else
+				if (verbose)
+					println("OK: <f> (<sloc(f)>)");
+		catch :
+			println("PARSE ERROR: <f> (<sloc(f)>)");
+	}
+}
 
+@doc { Returns count of Source Lines of Code for a method or other source entity. }
+// public int sloc(loc src) = 1 + src.end.line - src.begin.line;
+public int sloc(loc src) = size(readFileLines(src));
+
+public void showTree(str src) = renderParsetree(parse(#start[Code], src));
+public void showTree(loc src) = renderParsetree(parse(#start[Code], src));
+
+/*
 parseFiles(javaFiles(|project://rascal-eclipse|), verbose=true);
-parseFiles(removeRascalParser(javaFiles(|project://rascal-clone|)), verbose=true);
+parseFiles(javaFiles(|project://rascal-clone|), verbose=true);
 
 parseFiles(javaFiles(|project://p2-SnakesAndLadders|), verbose=true);
 
@@ -220,14 +259,13 @@ text(parse(#start[Code], |project://p2-SnakesAndLadders/src/snakes/Player.java|)
 import Ambiguity;
 diagnose(parse(#start[Code], |project://p2-SnakesAndLadders/src/snakes/Player.java|));
 
-
-This file is very slow to parse:
-|project://rascal-clone/src/org/rascalmpl/library/vis/figure/graph/lattice/LatticeGraphNode.java|
-
 */
 
 /*
+findAmbiguous(javaFiles(|project://p2-SnakesAndLadders|), verbose=true);
 findAmbiguous(javaFiles(|project://p2-SnakesAndLadders|));
+findAmbiguous(javaFiles(|project://rascal-eclipse|));
+findAmbiguous(javaFiles(|project://rascal-clone|));
 
 import ParseTree;
 loc f;
@@ -235,14 +273,35 @@ f = |project://p2-SnakesAndLadders/src/snakes/Die.java|;
 pt = parse(#start[Code], f);
 /amb(_) := pt;
 
+import  vis::ParseTree;
+renderParsetree(pt);
+
 import Ambiguity;
 diagnose(pt);
 
 ast = implode(#value, pt);
 ast = implode(#node, pt);
 
-
-import  vis::ParseTree;
-renderParsetree(pt);
+rascal>if(/(Word)`<Word w>` := pt) println("<w>");
+package
+ok
 
 */
+
+public void pretty(Tree pt) {
+	switch(pt) {
+		case (Word) `<Word w>` :
+			print("<w> ");
+		case (Struct) `{ <Code c> }` :
+			print("{ <pretty(c)> }");
+		default :
+			for (val <- getChildren(pt)) {
+				switch (val) {
+				case Tree subtree:
+					pretty(subtree);
+				default :
+					println("UNKNOWN <val>");
+				}
+			}
+	}
+}

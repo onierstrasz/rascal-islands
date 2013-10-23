@@ -24,7 +24,6 @@ lexical CharCharacter
   ; 
 
 lexical String
-  // = "\"" ![\"]* "\""
   = "\"" StringCharacter* "\""
   ;
 
@@ -38,23 +37,18 @@ lexical Any
   |	![a-z]
   ;
 
-// stolen from Rascal grammar
 lexical Comment
 	= "/*" (![*] | [*] !>> [/])* "*/" 
-	| "//" ![\n]* !>> [\ \t\r \u00A0 \u1680 \u2000-\u200A \u202F \u205F \u3000] $ // the restriction helps with parsing speed
+	| "//" ![\n]* !>> ![\n] $
 	;
 
 lexical Word
   = [a-zA-Z_][a-zA-Z0-9_\-]* !>> [a-zA-Z0-9_\-] // greedy
   ;
 
-syntax Noise // numbers and operators
-  = NoiseChar+
-  ;
-
-lexical NoiseChar
-  = ![a-zA-Z_(){}\[\]\"\']
-  | "/" !>> [*/] // take care not to conflict with comments
+lexical Noise // numbers and operators
+  = (![a-zA-Z_(){}\[\]\"\'/])+ !>> ![a-zA-Z_(){}\[\]\"\'/]
+  | "/" !>> [*/]
   ;
 
 lexical Paren = [ ( ) { } \[ \] ] ;
@@ -174,6 +168,8 @@ private list[str] binSearchErrs(type[&T<:Tree] begin, list[str] input) {
 	return input; // failed to find a substring with the error
 }
 
+/*
+NOT USEFUL
 @doc { Return a minimal substring that shows ambiguity. }
 public str minAmb(type[&T<:Tree] begin, loc input) {
 	if(/amb(_) := parse(begin, input)) {
@@ -198,6 +194,7 @@ private list[str] binSearchAmbiguity(type[&T<:Tree] begin, list[str] input) {
 		return binSearchErrs(begin, high);
 	return input; // failed to find a substring with the error
 }
+*/
 
 /*
 
