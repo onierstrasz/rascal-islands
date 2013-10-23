@@ -3,9 +3,9 @@ rascal-islands
 
 Experimental island grammars in Rascal.
 
-* https://github.com/onierstrasz/rascal-isalnds.git
+* https://github.com/onierstrasz/rascal-islands.git
 
-* git@github.com:onierstrasz/rascal-isalnds.git
+* git@github.com:onierstrasz/rascal-islands.git
 
 ---
 # Test Repos
