@@ -290,18 +290,13 @@ ok
 
 public void pretty(Tree pt) {
 	switch(pt) {
-		case (Word) `<Word w>` :
+		case Word w :
 			print("<w> ");
 		case (Struct) `{ <Code c> }` :
 			print("{ <pretty(c)> }");
 		default :
-			for (val <- getChildren(pt)) {
-				switch (val) {
-				case Tree subtree:
-					pretty(subtree);
-				default :
-					println("UNKNOWN <val>");
-				}
+			for (subtree <- pt.args) { // does not work for leaves?
+				pretty(subtree);
 			}
 	}
 }
