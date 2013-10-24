@@ -11,6 +11,7 @@ module islands::structure
 import IO; // println
 import String; // endsWith, intercalate
 import List; // size
+import Set; // toList
 import Node; // getChildren
 import util::FileSystem; // crawl
 import  vis::ParseTree; // renderParsetree
@@ -288,15 +289,66 @@ ok
 
 */
 
+// Just an experiment -- not a real pretty printer 
 public void pretty(Tree pt) {
 	switch(pt) {
-		case Word w :
-			print("<w> ");
-		case (Struct) `{ <Code c> }` :
-			print("{ <pretty(c)> }");
-		default :
-			for (subtree <- pt.args) { // does not work for leaves?
-				pretty(subtree);
+		case (Code)`<Stuff* s>` :
+			for (sub <- s) {
+				pretty(sub);
 			}
+		case (Stuff)`<Word w>` :
+			print("<w> ");
+		case (Stuff) `{ <Code c> }` : {
+				println("{");
+				pretty(c);
+				println("}");
+			}
+		case (Stuff)`<Water _>`:
+			;
 	}
 }
+
+@doc { print all the words in their contexts }
+public list[str] words(Tree pt, str begin="", str end="") {
+	switch(pt) {
+		case (Code)`<Stuff* s>` :
+			return ( [] | it + words(sub, begin=begin, end=end) | sub <- s );
+		case (Stuff)`<Word w>` :
+			return ["<begin><w><end>"];
+		case (Stuff) `{ <Code c> }` :
+			return words(c, begin="<begin>{", end="}<end>");
+		case (Stuff) `( <Code c> )` :
+			return words(c, begin="<begin>(", end=")<end>");
+		case (Stuff) `[ <Code c> ]` :
+			return words(c, begin="<begin>[", end="]<end>");
+		case (Stuff)`<Water _>`:
+			return [];
+		default :
+			return [];
+	}
+}
+
+public void countWords(loc project) {
+	list[str] allWords = ( [] | it + words(parse(#start[Code], src).top) | src <- toList(javaFiles(project)) );
+	for (<n,k> <- sort(countStrings(allWords)))
+		println(<n,k>);
+}
+
+public list[tuple[int, str]] countStrings(list[str] input) {
+	map[str, int] count = ();
+	str prev = "";
+	for (str s <- sort(input)) {
+		if (s == prev) {
+			count[s] = 1 + count[s];
+		} else {
+			prev = s;
+			count[s] = 1;
+		}
+	}
+	// return [ "<count[key]> <key>" | key <- count ];
+	return [ <count[key], key> | key <- count ];
+}
+
+/*
+countWords(|project://p2-SnakesAndLadders|);
+*/
